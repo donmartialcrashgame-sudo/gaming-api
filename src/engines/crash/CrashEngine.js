@@ -39,16 +39,17 @@ export class CrashEngine extends EventEmitter {
       round_id: `CR-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
       status: STATES.WAITING,
       multiplier: 1,
-      crash_point: null,
       created_at: new Date().toISOString(),
       betting_ends_at: null,
       started_at: null,
-      crashed_at: null
+      crashed_at: null,
+      // Internal only. Never included in public events or API responses.
+      _crash_point: null
     };
 
     this.currentRound = round;
     this.saveRound(round);
-    this.emitEvent("round.waiting", round);
+    this.emitPublicEvent("round.waiting", round);
 
     this.timer = setTimeout(() => this.startBetting(round), 1000);
   }
@@ -59,7 +60,7 @@ export class CrashEngine extends EventEmitter {
     round.status = STATES.BETTING;
     round.betting_ends_at = new Date(Date.now() + this.bettingDurationMs).toISOString();
     this.saveRound(round);
-    this.emitEvent("round.betting", round);
+    this.emitPublicEvent("round.betting", round);
 
     this.timer = setTimeout(() => this.startRunning(round), this.bettingDurationMs);
   }
@@ -69,10 +70,10 @@ export class CrashEngine extends EventEmitter {
 
     round.status = STATES.RUNNING;
     round.started_at = new Date().toISOString();
-    round.crash_point = this.generateCrashPoint();
+    round._crash_point = this.generateCrashPoint();
     round.multiplier = 1;
     this.saveRound(round);
-    this.emitEvent("round.running", round);
+    this.emitPublicEvent("round.running", round);
 
     this.runTick(round);
   }
@@ -83,24 +84,24 @@ export class CrashEngine extends EventEmitter {
     const elapsedSeconds = (Date.now() - new Date(round.started_at).getTime()) / 1000;
     round.multiplier = Number(Math.max(1, Math.exp(0.16 * elapsedSeconds)).toFixed(2));
 
-    if (round.multiplier >= round.crash_point) {
-      round.multiplier = round.crash_point;
+    if (round.multiplier >= round._crash_point) {
+      round.multiplier = round._crash_point;
       round.status = STATES.CRASHED;
       round.crashed_at = new Date().toISOString();
       this.saveRound(round);
-      this.emitEvent("round.crashed", round);
+      this.emitPublicEvent("round.crashed", round);
 
       this.timer = setTimeout(() => this.createRound(), 1500);
       return;
     }
 
-    this.emitEvent("round.multiplier", round);
+    this.emitPublicEvent("round.multiplier", round);
     this.timer = setTimeout(() => this.runTick(round), this.runningTickMs);
   }
 
   generateCrashPoint() {
-    // Demo engine only. Replace with the production game's approved
-    // deterministic/provably-fair result generation before real-money use.
+    // Demo-only generator. A production real-money implementation requires
+    // an approved deterministic/provably-fair generation scheme.
     const value = 1 + Math.random() * 9;
     return Number(value.toFixed(2));
   }
@@ -114,24 +115,33 @@ export class CrashEngine extends EventEmitter {
     }
   }
 
-  emitEvent(event, round) {
+  publicRound(round) {
+    const { _crash_point, ...publicData } = round;
+    return { ...publicData };
+  }
+
+  emitPublicEvent(event, round) {
     this.emit("event", {
       event,
       timestamp: new Date().toISOString(),
-      data: { ...round }
+      data: this.publicRound(round)
     });
   }
 
   getCurrentRound() {
-    return this.currentRound ? { ...this.currentRound } : null;
+    return this.currentRound ? this.publicRound(this.currentRound) : null;
   }
 
   getRounds(limit = 50) {
-    return Array.from(this.rounds.values()).reverse().slice(0, limit);
+    return Array.from(this.rounds.values())
+      .reverse()
+      .slice(0, limit)
+      .map((round) => this.publicRound(round));
   }
 
   getRound(roundId) {
-    return this.rounds.get(roundId) ? { ...this.rounds.get(roundId) } : null;
+    const round = this.rounds.get(roundId);
+    return round ? this.publicRound(round) : null;
   }
 }
 
