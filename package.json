@@ -1,0 +1,22 @@
+{
+  "name": "gaming-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend API and WebSocket platform for real-time crash and virtual football games.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.0",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "ws": "^8.18.3"
+  }
+}
