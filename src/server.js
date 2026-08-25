@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { CrashEngine } from './engines/crash/CrashEngine.js';
 import { BigOddEngine } from './engines/big-odd/BigOddEngine.js';
-import { authenticateApiKey } from './apiKeys.js';
+import { authenticateApiKey, rateLimitApiKey } from './apiKeys.js';
 import apiKeyRoutes from './apiKeyRoutes.js';
 
 const app = express();
@@ -19,10 +19,8 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'gaming-api', websocket: 'ready' });
 });
 
-// Dashboard/backend API-key management. These routes require a Supabase user session.
 app.use('/api/v1/api-keys', apiKeyRoutes);
 
-// Public read-only crash data.
 app.get('/api/v1/crash/current', (_req, res) => {
   res.json({ success: true, data: crashEngine.getCurrentRound() });
 });
@@ -39,12 +37,11 @@ app.get('/api/v1/crash/rounds/:roundId', (req, res) => {
   return res.json({ success: true, data: round });
 });
 
-// API-key protected premium endpoints.
-app.get('/api/v1/premium/big-odds/current', authenticateApiKey, (_req, res) => {
+app.get('/api/v1/premium/big-odds/current', authenticateApiKey, rateLimitApiKey, (_req, res) => {
   res.json({ success: true, data: bigOddEngine.getCurrent() });
 });
 
-app.get('/api/v1/premium/big-odds/history', authenticateApiKey, (req, res) => {
+app.get('/api/v1/premium/big-odds/history', authenticateApiKey, rateLimitApiKey, (req, res) => {
   const requestedLimit = Number(req.query.limit ?? 10);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 10, 1), 10);
   res.json({ success: true, data: bigOddEngine.getHistory(limit) });
@@ -70,7 +67,6 @@ bigOddEngine.on('generated', (payload) => {
 });
 
 const port = Number(process.env.PORT || 3000);
-
 server.listen(port, () => {
   console.log(`Gaming API listening on port ${port}`);
   crashEngine.start();
