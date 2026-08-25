@@ -4,6 +4,8 @@ import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { CrashEngine } from './engines/crash/CrashEngine.js';
 import { BigOddEngine } from './engines/big-odd/BigOddEngine.js';
+import { authenticateApiKey } from './apiKeys.js';
+import apiKeyRoutes from './apiKeyRoutes.js';
 
 const app = express();
 const server = createServer(app);
@@ -17,6 +19,10 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'gaming-api', websocket: 'ready' });
 });
 
+// Dashboard/backend API-key management. These routes require a Supabase user session.
+app.use('/api/v1/api-keys', apiKeyRoutes);
+
+// Public read-only crash data.
 app.get('/api/v1/crash/current', (_req, res) => {
   res.json({ success: true, data: crashEngine.getCurrentRound() });
 });
@@ -33,22 +39,12 @@ app.get('/api/v1/crash/rounds/:roundId', (req, res) => {
   return res.json({ success: true, data: round });
 });
 
-function requirePremium(req, res, next) {
-  const apiKey = req.header('x-api-key');
-  const premiumKey = process.env.PREMIUM_API_KEY;
-
-  if (!premiumKey || !apiKey || apiKey !== premiumKey) {
-    return res.status(403).json({ success: false, error: 'premium_access_required' });
-  }
-
-  return next();
-}
-
-app.get('/api/v1/premium/big-odds/current', requirePremium, (_req, res) => {
+// API-key protected premium endpoints.
+app.get('/api/v1/premium/big-odds/current', authenticateApiKey, (_req, res) => {
   res.json({ success: true, data: bigOddEngine.getCurrent() });
 });
 
-app.get('/api/v1/premium/big-odds/history', requirePremium, (req, res) => {
+app.get('/api/v1/premium/big-odds/history', authenticateApiKey, (req, res) => {
   const requestedLimit = Number(req.query.limit ?? 10);
   const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 10, 1), 10);
   res.json({ success: true, data: bigOddEngine.getHistory(limit) });
