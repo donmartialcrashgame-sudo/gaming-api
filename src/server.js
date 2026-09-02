@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import { CrashEngine } from './engines/crash/CrashEngine.js';
 import { BigOddEngine } from './engines/big-odd/BigOddEngine.js';
 import { authenticateApiKey, rateLimitApiKey } from './apiKeys.js';
-import apiKeyRoutes from './apiKeyRoutes.js';
+import apiKeyRoutes from './apiKeyRoutesSecure.js';
 
 const app = express();
 const server = createServer(app);
